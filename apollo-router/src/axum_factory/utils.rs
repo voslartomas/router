@@ -29,6 +29,7 @@ use opentelemetry::trace::SpanKind;
 use opentelemetry::trace::TraceContextExt;
 use tokio::io::AsyncWriteExt;
 use tower_http::trace::MakeSpan;
+use tracing::Instrument;
 use tracing::Level;
 use tracing::Span;
 
@@ -71,22 +72,31 @@ pub(super) async fn decompress_request_body(
                     )
                         .into_response()
                 })
+                .instrument(tracing::info_span!("buffering"))
                 .await?;
             let mut decoder = $decoder::new(Vec::new());
-            decoder.write_all(&body_bytes).await.map_err(|err| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    format!("{}: {err}", $error_message),
-                )
-                    .into_response()
-            })?;
-            decoder.shutdown().await.map_err(|err| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    format!("{}: {err}", $error_message),
-                )
-                    .into_response()
-            })?;
+            decoder
+                .write_all(&body_bytes)
+                .instrument(tracing::info_span!("decompression"))
+                .await
+                .map_err(|err| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("{}: {err}", $error_message),
+                    )
+                        .into_response()
+                })?;
+            decoder
+                .shutdown()
+                .instrument(tracing::info_span!("decompression_end"))
+                .await
+                .map_err(|err| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("{}: {err}", $error_message),
+                    )
+                        .into_response()
+                })?;
 
             Ok(next
                 .run(Request::from_parts(parts, Body::from(decoder.into_inner())))

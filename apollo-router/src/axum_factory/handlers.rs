@@ -20,7 +20,6 @@ use tower::util::BoxService;
 use tower::BoxError;
 use tower::ServiceExt;
 use tower_service::Service;
-use tracing::Instrument;
 
 use super::utils::accepts_json;
 use super::utils::accepts_multipart;
@@ -118,11 +117,7 @@ where
 {
     let (head, body) = http_request.into_parts();
     let mut req: SupergraphRequest = Request::from_parts(head, body).into();
-    req = match apq
-        .apq_request(req)
-        .instrument(tracing::info_span!("apq"))
-        .await
-    {
+    req = match apq.apq_request(req).await {
         Ok(req) => req,
         Err(res) => {
             let (parts, mut stream) = res.response.into_parts();

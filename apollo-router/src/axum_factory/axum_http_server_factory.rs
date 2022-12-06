@@ -305,7 +305,6 @@ where
     })?;
 
     let main_route = main_router::<RF>(configuration, apq)
-        .layer(middleware::from_fn(decompress_request_body))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(PropagatingMakeSpan::new())
@@ -332,8 +331,12 @@ where
                     }
                 }),
         )
+        .layer(middleware::from_fn(decompress_request_body))
+        .instrument(tracing::info_span!("service factory start"))
         .layer(Extension(service_factory))
+        .instrument(tracing::info_span!("cors start"))
         .layer(cors)
+        .instrument(tracing::info_span!("cors end"))
         // Compress the response body, except for multipart responses such as with `@defer`.
         // This is a work-around for https://github.com/apollographql/router/issues/1572
         .layer(CompressionLayer::new().compress_when(

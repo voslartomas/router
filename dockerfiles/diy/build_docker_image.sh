@@ -156,6 +156,7 @@ if [ "${BUILD_IMAGE}" = true ]; then
     docker build -q -t "router:${ROUTER_VERSION}" \
         --build-arg DEBUG_IMAGE="${DEBUG_IMAGE}" \
         --build-arg ROUTER_VERSION="${ROUTER_VERSION}" \
+        --platform linux/amd64 \
         --no-cache -f ../Dockerfile.repo . \
         || terminate "Couldn't build router image"
 else

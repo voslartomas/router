@@ -305,6 +305,7 @@ where
     })?;
 
     let main_route = main_router::<RF>(configuration, apq)
+        .layer(middleware::from_fn(decompress_request_body))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(PropagatingMakeSpan::new())
@@ -331,7 +332,6 @@ where
                     }
                 }),
         )
-        .layer(middleware::from_fn(decompress_request_body))
         .layer(Extension(service_factory))
         .layer(cors)
         // Compress the response body, except for multipart responses such as with `@defer`.

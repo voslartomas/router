@@ -21,6 +21,7 @@ use tower::util::BoxService;
 use tower::BoxError;
 use tower::ServiceExt;
 use tower_service::Service;
+use tracing::Instrument;
 
 use super::utils::accepts_json;
 use super::utils::accepts_multipart;
@@ -125,6 +126,7 @@ pub(super) async fn handle_post(
     *http_request.headers_mut() = header_map;
 
     run_graphql_request(service, apq, http_request)
+        .instrument(tracing::info_span!("run_graphql_request"))
         .await
         .into_response()
 }
@@ -139,7 +141,11 @@ where
 {
     let (head, body) = http_request.into_parts();
     let mut req: SupergraphRequest = Request::from_parts(head, body).into();
-    req = match apq.apq_request(req).await {
+    req = match apq
+        .apq_request(req)
+        .instrument(tracing::info_span!("apq_request"))
+        .await
+    {
         Ok(req) => req,
         Err(res) => {
             let (parts, mut stream) = res.response.into_parts();

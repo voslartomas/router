@@ -33,6 +33,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::compression::DefaultPredicate;
 use tower_http::compression::Predicate;
 use tower_http::trace::TraceLayer;
+use tracing::Instrument;
 use tracing::Span;
 
 use super::handlers::handle_get;
@@ -405,6 +406,7 @@ where
                             service.new_service().boxed(),
                             header_map,
                         )
+                        .instrument(tracing::info_span!("handle_post"))
                     }
                 }
             })

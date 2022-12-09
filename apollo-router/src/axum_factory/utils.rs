@@ -28,6 +28,7 @@ use opentelemetry::global;
 use opentelemetry::trace::TraceContextExt;
 use tokio::io::AsyncWriteExt;
 use tower_http::trace::MakeSpan;
+use tracing::Instrument;
 use tracing::Level;
 use tracing::Span;
 
@@ -70,22 +71,31 @@ pub(super) async fn decompress_request_body(
                     )
                         .into_response()
                 })
+                .instrument(tracing::info_span!("buffer_body"))
                 .await?;
             let mut decoder = $decoder::new(Vec::new());
-            decoder.write_all(&body_bytes).await.map_err(|err| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    format!("{}: {err}", $error_message),
-                )
-                    .into_response()
-            })?;
-            decoder.shutdown().await.map_err(|err| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    format!("{}: {err}", $error_message),
-                )
-                    .into_response()
-            })?;
+            decoder
+                .write_all(&body_bytes)
+                .instrument(tracing::info_span!("decompress"))
+                .await
+                .map_err(|err| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("{}: {err}", $error_message),
+                    )
+                        .into_response()
+                })?;
+            decoder
+                .shutdown()
+                .instrument(tracing::info_span!("compression shutdown"))
+                .await
+                .map_err(|err| {
+                    (
+                        StatusCode::BAD_REQUEST,
+                        format!("{}: {err}", $error_message),
+                    )
+                        .into_response()
+                })?;
 
             Ok(next
                 .run(Request::from_parts(parts, Body::from(decoder.into_inner())))
@@ -99,7 +109,10 @@ pub(super) async fn decompress_request_body(
                 "br" => decode_body!(BrotliDecoder, "cannot decompress (brotli) request body"),
                 "gzip" => decode_body!(GzipDecoder, "cannot decompress (gzip) request body"),
                 "deflate" => decode_body!(ZlibDecoder, "cannot decompress (deflate) request body"),
-                "identity" => Ok(next.run(Request::from_parts(parts, body)).await),
+                "identity" => Ok(next
+                    .run(Request::from_parts(parts, body))
+                    .instrument(tracing::info_span!("compression identity"))
+                    .await),
                 unknown => {
                     let message = format!("unknown content-encoding header value {:?}", unknown);
                     tracing::error!(message);
@@ -123,7 +136,10 @@ pub(super) async fn decompress_request_body(
                 Err((StatusCode::BAD_REQUEST, message).into_response())
             }
         },
-        None => Ok(next.run(Request::from_parts(parts, body)).await),
+        None => Ok(next
+            .run(Request::from_parts(parts, body))
+            .instrument(tracing::info_span!("compression none"))
+            .await),
     }
 }
 

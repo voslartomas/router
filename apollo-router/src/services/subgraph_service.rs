@@ -119,7 +119,7 @@ impl tower::Service<crate::SubgraphRequest> for SubgraphService {
             let body = serde_json::to_string(&body).expect("JSON serialization should not fail");
 
             let compressed_body = compress(body, &parts.headers)
-                .instrument(tracing::debug_span!("body_compression"))
+                .instrument(tracing::info_span!("body_compression"))
                 .await
                 .map_err(|err| {
                     tracing::error!(compress_error = format!("{:?}", err).as_str());
@@ -219,7 +219,7 @@ impl tower::Service<crate::SubgraphRequest> for SubgraphService {
             }
 
             let body = hyper::body::to_bytes(body)
-                .instrument(tracing::debug_span!("aggregate_response_data"))
+                .instrument(tracing::info_span!("aggregate_response_data"))
                 .await
                 .map_err(|err| {
                     tracing::error!(fetch_error = format!("{:?}", err).as_str());
@@ -236,7 +236,7 @@ impl tower::Service<crate::SubgraphRequest> for SubgraphService {
                 );
             }
 
-            let graphql: graphql::Response = tracing::debug_span!("parse_subgraph_response")
+            let graphql: graphql::Response = tracing::info_span!("parse_subgraph_response")
                 .in_scope(|| {
                     graphql::Response::from_bytes(&service_name, body).map_err(|error| {
                         FetchError::SubrequestMalformedResponse {
